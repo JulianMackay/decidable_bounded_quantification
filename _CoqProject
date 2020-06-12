@@ -1,0 +1,4 @@
+-R ./ com.decidable
+CpdtTactics.v
+f_sub.v
+d_sub.v
