@@ -2,3 +2,6 @@
 *.vok
 *.vos
 *.glob
+*.aux
+*.log
+*.synctec.gz
