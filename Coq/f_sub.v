@@ -78,27 +78,39 @@ Ltac eq_auto n m :=
 
 (**
 Definitions
-*)
+ *)
+
+Inductive name :=
+| restrict : nat -> name
+| unrestrict : nat -> name.
 
 Inductive var : Type :=
-| hole : nat  -> var
-| bnd : nat -> var.
+| hole : name -> var
+| bnd : name -> var.
 
 Inductive ty :Type :=
 | top : ty
 | t_var : var -> ty
+| t_arr : ty -> ty -> ty
 | all : ty -> ty -> ty.
 
 Notation "'⊤'" := (top)(at level 40).
-Notation "'♢' n" := (t_var (hole n))(at level 40).
-Notation "'α' n" := (t_var (bnd n))(at level 40).
+Notation "'ρ♢' n" := (t_var (hole (restrict n)))(at level 40).
+Notation "'υ♢' n" := (t_var (hole (unrestrict n)))(at level 40).
+Notation "'ρ̇' n" := (t_var (bnd (restrict n)))(at level 40).
+Notation "'υ̇' n" := (t_var (bnd (unrestrict n)))(at level 40).
+Notation "'♢' n" := (t_var (hole n))(at level 41).
+Notation "'α̇' n" := (t_var (bnd n))(at level 41).
+Notation "τ1 '⟶' τ2" := (t_arr τ1 τ2)(at level 40).
 Notation "'∀' τ1 '∙' τ2" := (all τ1 τ2)(at level 40).
 
 Fixpoint max_n (τ : ty) : nat :=
   match τ with
   | ⊤ => 0
-  | α n => n
+  | ρ̇ n => n
+  | υ̇ n => n
   | (∀ τ1 ∙ τ2) => max (max_n τ1) (max_n τ2)
+  | τ1 ⟶ τ2 => max (max_n τ1) (max_n τ2)
   | _ => 0
   end.
 
@@ -252,10 +264,21 @@ Notation "'𝒜' '[' τ ']'" := (all_measure τ)(at level 40).
 (*Definition all_measure_env {n : nat}(Γ : env n) :=
   //map all_measure Γ.*)
 
-Lemma get_le :
+Lemma get_le_ρ :
   forall {A : Type}{size : A -> nat}{m : nat}{Γ : indexed_list m}{n : nat}{a : @indexed A size m},
     [ n ⩽ a ] ∈ Γ ->
-    ℳ [α n] <= m.
+    ℳ [ρ̇ n] <= m.
+Proof.
+  intros.
+  simpl.
+  eapply Nat.lt_le_incl, get_lt;
+    eauto.
+Qed.
+
+Lemma get_le_υ :
+  forall {A : Type}{size : A -> nat}{m : nat}{Γ : indexed_list m}{n : nat}{a : @indexed A size m},
+    [ n ⩽ a ] ∈ Γ ->
+    ℳ [υ̇ n] <= m.
 Proof.
   intros.
   simpl.
@@ -265,10 +288,14 @@ Qed.
 
 Fixpoint sbst (n m : nat)(τ : ty) : ty :=
   match τ with
-  | ♢ n' => if n' =? n
-           then (α m)
+  | ρ♢ n' => if n' =? n
+           then (ρ̇ m)
+           else τ
+  | υ♢ n' => if n' =? n
+           then (υ̇ m)
            else τ
   | (∀ τ1 ∙ τ2) => (∀ (sbst n m τ1) ∙ (sbst (S n) m τ2))
+  | τ1 ⟶ τ2 => (sbst n m τ1) ⟶ (sbst n m τ2)
   | _ => τ
   end.
 
@@ -285,10 +312,16 @@ Notation "'𝒜' '[' τ ']'" := (all_measure τ)(at level 40).*)
 
 
 Inductive closed : ty -> nat -> Prop :=
-| cl_bnd : forall n m, closed (α m) n
-| cl_hole : forall n m, m < n ->
-                   closed (♢ m) n
+| cl_rbnd : forall n m, closed (ρ̇ m) n
+| cl_ubnd : forall n m, closed (υ̇ m) n
+| cl_rhole : forall n m, m < n ->
+                    closed (ρ♢ m) n
+| cl_uhole : forall n m, m < n ->
+                    closed (υ♢ m) n
 | cl_top : forall n, closed (⊤) n
+| cl_arr : forall n τ1 τ2, closed τ1 n ->
+                      closed τ2 n ->
+                      closed (τ1 ⟶ τ2) n
 | cl_all : forall n τ1 τ2, closed τ1 n ->
                       closed τ2 (S n) ->
                       closed (∀ τ1 ∙ τ2) n.
@@ -324,8 +357,29 @@ Proof.
     eauto.
 
   - destruct v; auto.
-    destruct (n0 =? x);
+    destruct n0;
+      destruct (n0 =? x);
       auto.
+
+  - match goal with
+    | [Hmax : max ?n ?m <= ?x |- _] =>
+      assert (n <= max n m);
+        [crush|];
+        assert (m <= max n m);
+        [crush|];
+        assert (n <= x);
+        [crush|];
+        assert (m <= x);
+        [crush|]
+    end;
+      match goal with
+      | [ |- context[max ?n ?m]] =>
+        let H := fresh in
+        destruct (Nat.max_dec n m) as [H|H];
+          rewrite H
+      end;
+      try (rewrite IHτ1; auto);
+      try (rewrite IHτ2; auto).
 
   - match goal with
     | [Hmax : max ?n ?m <= ?x |- _] =>
@@ -348,18 +402,50 @@ Proof.
       try (rewrite IHτ2; auto).
 Qed.
 
+Inductive restricted : ty -> Prop :=
+| rest_top : restricted (⊤)
+| rest_bnd : forall n, restricted (ρ̇ n)
+| rest_hole : forall n, restricted (ρ♢ n)
+| rest_arr : forall τ1 τ2, restricted τ1 ->
+                      restricted τ2 ->
+                      restricted (τ1 ⟶ τ2).
+
+Fixpoint weight {n : nat}(Γ : env n)(τ : ty) :=
+  match τ with
+  | ⊤ => 0
+  | 
+  | τ1 ⟶ τ2 => max (weight Γ τ1) (weight Γ τ2)
+  | (∀ τ1 ∙ τ2) => weight Γ τ1
+  end.
+
+Lemma ℳ_all :
+  forall {τ : ty}{n : nat}, ℳ [τ] <= n ->
+                     forall {x : nat}, ℳ [[x ↦ n]τ] <= S n.
+Proof.
+Qed.
+
 Reserved Notation "Γ '⊢' τ1 '⩽' τ2"(at level 40).
 
 Inductive sub {n : nat}: env n -> indexed_ty n -> indexed_ty n -> Prop :=
 | s_top : forall Γ ι,
     Γ ⊢ ι ⩽ (⟦ ⊤ ⊨ ℳ_top⟧)
 
-| s_rfl : forall Γ m (P : ℳ [α m] <= n),
-    Γ ⊢ ⟦ α m ⊨ P ⟧ ⩽ ⟦ α m ⊨ P ⟧
+| s_rfl : forall Γ m (P : ℳ [α̇ m] <= n),
+    Γ ⊢ ⟦ α̇ m ⊨ P ⟧ ⩽ ⟦ α̇ m ⊨ P ⟧
 
-| s_var : forall Γ m ι1 ι2 (P : [m ⩽ ι1] ∈ Γ),
+| s_var1 : forall Γ m ι1 ι2 (P : [m ⩽ ι1] ∈ Γ),
     Γ ⊢ ι1 ⩽ ι2 ->
-    Γ ⊢ ⟦ (α m) ⊨ get_le P ⟧ ⩽ ι2
+    Γ ⊢ ⟦ (ρ̇ m) ⊨ get_le_ρ P ⟧ ⩽ ι2
+
+| s_var2 : forall Γ m ι1 ι2 (P : [m ⩽ ι1] ∈ Γ),
+    Γ ⊢ ι1 ⩽ ι2 ->
+    Γ ⊢ ⟦ (υ̇ m) ⊨ get_le_υ P ⟧ ⩽ ι2
+
+| s_all_kernel : forall (Γ : env n) (τ τ1 τ2 : ty)
+                   (P1 : ℳ [ τ1] <= n)(P2 : ℳ [τ2] <= n)
+                   (P : ℳ [τ] <= n),
+    @sub (S n) (Γ , [n ⩽ (⟦ τ ⊨ P ⟧) ]) (⟦[0 ↦ n] τ1 ⊨ ℳ_sbst P1⟧) (⟦[0 ↦ n] τ2 ⊨ ℳ_sbst P2⟧) ->
+    Γ ⊢ (⟦(∀ τ ∙ τ1) ⊨ ⟧) ⩽ (⟦(∀ τ ∙ τ2)⊨ ⟧)
 
 | s_all : forall (Γ : env n) (τ1 τ2 τ1' τ2' : ty)
             (P1 : ℳ [ τ1] <= n)(P2 : ℳ [τ2] <= n)
@@ -588,6 +674,8 @@ Proof.
     + repeat rewrite sbst_nle; auto.
       crush.
 Qed.
+
+
 
 (*Lemma sbst_n_closed :
   forall n τ, closed τ n ->

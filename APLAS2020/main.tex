@@ -1,0 +1,538 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.20 of 2017/10/04
+%
+\documentclass[runningheads]{llncs}
+
+\usepackage{stmaryrd}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{common/common}
+\usepackage{mathpartir}
+\usepackage{listings}
+\usepackage{color,soul}
+
+
+
+
+%\definecolor{lightYellow}{rgb}{1,1,0.8}
+\definecolor{lightYellow}{rgb}{1,1,0.8}
+
+
+
+\lstdefinestyle{custom_lang}{
+%   language = scala,
+	escapeinside={*}{*},
+  	showstringspaces=false,
+  	basicstyle={\ttfamily},
+  	keywordstyle=\color{blue},
+  	keywords = [1]{def},
+  	otherkeywords = {<:, >:, =, ->, =>},
+  	morekeywords = [2]{<:, >:, =, ->, =>, this},
+%	
+	keywordstyle = [1]{\tt \bfseries \color{red}},
+	keywordstyle = [2]{\tt \bfseries \color{blue}},
+%	morekeywords = [2]{class, interface, module, val, type, def, object, var},
+%	morekeywords = [3]{match, with, this},
+%	morekeywords = [4]{<:, >:, =, ->, =>},
+	frame=single
+}
+%
+\usepackage{graphicx}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following line
+% to display URLs in blue roman font according to Springer's eBook style:
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+
+\begin{document}
+%
+\title{Contribution Title\thanks{Supported by organization x.}}
+%
+%\titlerunning{Abbreviated paper title}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{First Author\inst{1}\orcidID{0000-1111-2222-3333} \and
+Second Author\inst{2,3}\orcidID{1111-2222-3333-4444} \and
+Third Author\inst{3}\orcidID{2222--3333-4444-5555}}
+%
+\authorrunning{F. Author et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{Princeton University, Princeton NJ 08544, USA \and
+Springer Heidelberg, Tiergartenstr. 17, 69121 Heidelberg, Germany
+\email{lncs@springer.com}\\
+\url{http://www.springer.com/gp/computer-science/lncs} \and
+ABC Institute, Rupert-Karls-University Heidelberg, Heidelberg, Germany\\
+\email{\{abc,lncs\}@uni-heidelberg.de}}
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+The abstract should briefly summarize the contents of the paper in
+150--250 words.
+
+\keywords{First keyword  \and Second keyword \and Another keyword.}
+\end{abstract}
+
+\section{Introduction}
+\label{s:intro}
+
+Bounded quantification (or bounded polymorphism) is a powerful and widely used language construct that introduces a form of 
+abstraction for types. Where functions provide an abstraction of behavior for values, bounded quantification 
+provides an abstraction of behavior for types. A motivating example is an addition function for numbers. Below we
+provide such an example using no particular language syntax (although it resembles Scala).
+\begin{lstlisting}[mathescape, style=custom_lang]
+def plus [A <: Real] : A -> A -> A
+\end{lstlisting}
+The type \verb|A| is unimportant except in that A is some subtype of \verb|Real| (the upper bound on \verb|A|). Ideally we would like to 
+\verb|plus| to be defined abstractly for any value that could be considered a \verb|Real|, and not have to write 
+a separate function for \verb|Integer|, \verb|Natural|, and \verb|Real|. \verb|plus| is  quantified over type \verb|A| which is 
+bounded by \verb|Real|.
+
+Bounded quantification has been adopted by many different languages, and is not exclusive to any specific paradigm.
+Java Generics provide a form of bounded quantification for both method and class definitions.
+Scala includes generics similar to that of Java (only more flexible), but adds abstract type members on top, further complicating matters.
+
+Unfortunately, several forms of bounded quantification have been shown to exhibit undecidable subtyping.
+To the surprise of many at the time, Pierce \cite{fsub popl 92} demonstrated that subtyping in \Fsub, a typed $\lambda$-calculus with subtyping and bounded quantification, 
+was undecidable by a reduction to the halting problem.
+More recently , and to perhaps less surprise, subtyping of Java Generics was also shown to be undecidable.
+Hu \cite{jason and andreij} showed subtyping of D$_{<:}$, a minimal calculus, capturing parts of the Scala type system, was undecidable by a reduction to an undecidable fragment of \Fsub.
+
+If subtyping in languages with relatively wide usage is undecidable, then one might ask the question: how important is decidable subtyping in practice?
+Unfortunately, undecidability means that type checking of certain programs will not terminate, and will eventually crash without any error message indicating the problem.
+In writing a compiler, one fix to this problem might be to enforce a maximal depth on proof search, or to simply timeout during type checking. These are unsatisfying 
+solutions, as not only might they exclude some false negatives, but they also won't be able to provide the programmer much guidance on debugging their program.
+Thus, while presumably rare, the potential problems are severe.
+
+In this paper we show how simple syntactic restrictions can allow for decidable forms of bounded quantification that are easy to type check, 
+allow for informative error messages, all while retaining many of the useful properties of typing in \Fsub: subtype transitivity, type safety, and minimal typing.
+
+\section{The Undecidability of Bounded Quantification in \Fsub}
+
+Bounded polymorphism was formalized in \Fsub by Cardelli \cite{cardelli}, and shown to be undecidable by Pierce \cite{pierce popl 92}.
+\Fsub introduces bounded quantification to the simply typed $\lambda$-calculus by way of a universally quantified syntactic form with the
+following typing rule.
+\begin{mathpar}
+\infer
+	{
+	\Gamma, (\alpha \leqslant \tau_1) \vdash t\ :\ \tau_2
+	}
+	{
+	\Gamma \vdash \Lambda (\alpha \leqslant \tau_1).t\ :\ \forall (\alpha \leqslant \tau_1).\tau_2
+	}
+\end{mathpar}
+That is, term $t$, with type $\tau_2$, is quantified over some type, represented by $\alpha$, whose upper bound is $\tau_1$.
+The undecidability of subtyping in \Fsub was demonstrated by a reduction of subtyping to the halting problem.
+The reduction to the halting problem relies on the contra-variance in the subtyping rule for universally quantified types given below.
+\begin{mathpar}
+\infer
+	{
+	\Gamma \vdash \tau_2\ <:\ \tau_1 \\
+	\Gamma, (\alpha \leqslant \tau_2) \vdash \tau_1'\ <:\ \tau_2'
+	}
+	{
+	\Gamma \vdash \forall (\alpha \leqslant \tau_1).\tau_1'\ :\ \forall (\alpha \leqslant \tau_2).\tau_2'
+	}
+	\quad(\textsc{S-All})
+\end{mathpar}
+As can be seen above, subtyping of universally quantified types in \Fsub allows for contra-variance on the bound of the quantified type.
+Kernel F$_{<:}$, a variant of \Fsub, has been shown to be decidable in its subtyping \cite{pierce}. Kernel F$_{<:}$ removes the contra-variance of the \textsc{S-All} rule above, 
+and instead enforces invariance on the bound.
+\begin{mathpar}
+\infer
+	{
+	\Gamma, (\alpha \leqslant \tau) \vdash \tau_1\ <:\ \tau_2
+	}
+	{
+	\Gamma \vdash \forall (\alpha \leqslant \tau).\tau_1\ :\ \forall (\alpha \leqslant \tau).\tau_2
+	}
+	\quad(\textsc{S-All-Kernel})
+\end{mathpar}
+While decidable, \textsc{S-All-Kernel} is unsatisfying as it excludes desirable behavior. 
+Ideally, we would like the \verb|plus| function, from Section \ref{s:intro}, to be substitutable for some other function defined for the more general type \verb|Number|:
+\begin{lstlisting}[mathescape, style=custom_lang]
+def add [A <: Number] : A -> A -> A
+\end{lstlisting}
+Castagna and Pierce \cite{ftop stuff} attempted to introduce such variance in a safe way by proposing F$^\top_{<:}$ 
+with the following subtyping rule for universally quantified types.
+\begin{mathpar}
+\infer
+	{
+	\Gamma \vdash \tau_2\ <:\ \tau_1 \\
+	\Gamma, (\alpha \leqslant \top) \vdash \tau_1'\ <:\ \tau_2'
+	}
+	{
+	\Gamma \vdash \forall (\alpha \leqslant \tau_1).\tau_1'\ :\ \forall (\alpha \leqslant \tau_2).\tau_2'
+	}
+	\quad(\textsc{S-All$^\top$})
+\end{mathpar}
+Unfortunately, while decidable, F$_{<:}^\top$ sacrifices minimal typing. 
+That is, it is possible to write a term in F$_{<:}^\top$ that can be typed 
+with two different, and unrelated types \cite{ftop autopsy}. A lack of minimal 
+typing means that the typing algorithm for F$_{<:}^\top$ is not complete.
+
+\section{Constrained Contra-variance in \Fsub}
+In this section we present a variant of \Fsub that introduces a syntactic restriction on bounded quantification to achieve decidable subtyping.
+We start by introducing the type syntax of \Fsub in Figure \ref{f:fsub :syntax}. Since we are only concerned with subtyping, and not typing, we only present 
+the type syntax. The term syntax and typing rules can be found in Appendix \ref{app:fsub}. 
+A type in \Fsub is either the top type ($\top$), a bounded type variable ($\alpha$), an arrow type ($\tau \rightarrow \tau$), or a universally quantified type ($\forall(\alpha\leqslant\tau).\tau$).
+
+\begin{figure}[t]
+\begin{minipage}{\linewidth}
+\[
+%\begin{array}{lcr}
+\begin{syntax}
+\syntaxElement{\tau}{\Fsub Type}
+	{\top}{top}
+	{\alpha}{variable}
+	{\tau \rightarrow \tau}{arrow}
+	{\forall (\alpha \leqslant \tau).\tau}{all}
+\endSyntaxElement
+\end{syntax}
+\]
+\caption{\Fsub Type Syntax}
+\label{f:fsub :syntax}
+\end{minipage}
+\end{figure}
+
+In Figure \ref{f:fsub:subtyping} we define the subtyping of F$_{<:}^N$, a normal form of subtyping in \Fsub, defined by Pierce \cite{popl 92}. Subtyping is bounded above by $\top$ (\textsc{S$^N$-Top}) and explicitly reflexive in the case of type variables (\textsc{S$^N$-Rfl}).
+A type supertypes a type variable if it supertypes its upper bound (\textsc{S$^N$-Var}).
+Subtyping of arrow types is contra-variant with respect to its argument type, and covariant with respect to its return type (\textsc{S$^N$-Arr}).
+Finally, subtyping of universally quantified types is contra-variant with respect to the type bounds, and covariant with respect to the type bodies.
+\begin{figure}[t]
+\begin{mathpar}
+\infer
+	{}
+	{\Gamma \vdash \tau\ <:\ \top}
+	\quad (\textsc{S$^N$-Top})
+	\and
+\infer
+	{}
+	{\Gamma \vdash \alpha\ <:\ \alpha}
+	\quad (\textsc{S$^N$-Rfl})
+	\and
+\infer
+	{
+	(\alpha\ \leqslant\ \tau)\ \in\ \Gamma \\
+	\Gamma \vdash \tau'\ <: \tau
+	}
+	{\Gamma \vdash \alpha\ <:\ \tau}
+	\quad (\textsc{S$^N$-Var})
+	\and
+\infer
+	{
+	\Gamma \vdash \tau_2\ <:\ \tau_1 \\
+	\Gamma  \vdash \tau_1'\ <:\ \tau_2'
+	}
+	{\Gamma \vdash \tau_1 \rightarrow \tau_1'\ <:\ \tau_2 \rightarrow \tau_2'}
+	\quad (\textsc{S$^N$-Arr})
+	\and
+\infer
+	{
+	\Gamma \vdash \tau_2\ <:\ \tau_1 \\
+	\Gamma, (\alpha \leqslant \tau_2) \vdash \tau_1'\ <:\ \tau_2'
+	}
+	{\Gamma \vdash \forall (\alpha\leqslant\tau_1).\tau_1'\ <:\ \forall(\alpha \leqslant \tau_2).\tau_2'}
+	\quad (\textsc{S$^N$-All})
+\end{mathpar}
+\caption{\Fsub Subtyping}
+\label{f:fsub:subtyping}
+\end{figure}
+
+Achieving a decidable variant of \Fsub follows a simple idea: we restrict contra-variance of type bounds to only types that do not themselves contain bounded quantification.
+In Figure \ref{f:restricted:syntax}  we introduce a separated syntax for the syntax of \Fsub. 
+\begin{figure}[t]
+\begin{minipage}{\linewidth}
+\[
+%\begin{array}{lcr}
+\begin{syntax}
+\syntaxElement{\tau}{Separated \Fsub Type}
+	{\top}{top}
+	{\alpha}{variable}
+	{\gamma}{restricted variable}
+	{\tau \rightarrow \tau}{arrow}
+	{\forall (\gamma \leqslant \mu).\tau}{restricted all}
+	{\forall (\delta \leqslant \tau).\tau}{all}
+\endSyntaxElement\\
+\syntaxElement{\alpha}{Type Variable}
+	{\gamma}{unrestricted}
+	{\delta}{restricted}
+\endSyntaxElement\\
+\syntaxElement{\mu}{Restricted Type}
+	{\top}{top}
+	{\gamma}{variable}
+	{\mu \rightarrow \mu}{arrow}
+	{\red{\forall (\gamma \leqslant \top).\mu}}{\red{all???}}
+\endSyntaxElement
+\end{syntax}
+\]
+\caption{A Separated \Fsub Type Syntax}
+\label{f:restricted:syntax}
+\end{minipage}
+\end{figure}
+Types containing no bounded quantification are identifed by $\mu$. Their only difference from more general types is a lack of bounded quantification.
+A restricted type, $\gamma$, is either $\top$, a type variable, or an arrow type.
+We now define a restricted subtyping relation using the rule set in Figure \ref{f:sep:subtyping} (Note: we omit rules for subtyping of $\top$, reflexivity, type variables, and arrow types as they are unchanged from Figure \ref{f:fsub:subtyping}).
+\begin{figure}[t]
+\begin{mathpar}
+\infer
+	{
+	\Gamma, (\alpha \leqslant \tau)  \vdash \tau_1\ <:^R\ \tau_2
+	}
+	{\Gamma \vdash \forall(\alpha \leqslant \tau).\tau_1\ <:^R\ \forall(\alpha \leqslant \tau).\tau_2}
+	\quad (\textsc{S$^R$-All-Kernel})
+	\and
+\infer
+	{
+	\Gamma \vdash \mu_2\ <:^R\ \mu_1 \\
+	\Gamma, (\gamma \leqslant \mu_2) \vdash \tau_1\ <:^R\ \tau_2
+	}
+	{\Gamma \vdash \forall (\gamma\leqslant\mu_1).\tau_1\ <:^R\ \forall(\gamma \leqslant \mu_2).\tau_2}
+	\quad (\textsc{S$^R$-All})
+\end{mathpar}
+\caption{Separated \Fsub Subtyping}
+\label{f:sep:subtyping}
+\end{figure}
+
+The subtyping defined in Figure \ref{f:sep:subtyping} replaces the \textsc{S$^N$-All} rule with two rules: \textsc{S$^R$-All-Kernel} and \textsc{S$^R$-All}. 
+\textsc{S$^R$-All-Kernel} is exactly the rule for subtyping of bounded quantification found in Kernel F$_{<:}$, that is, 
+for $\forall(\alpha \leqslant \tau_1).\tau_1'$ to subtype $\forall(\alpha \leqslant \tau_2).\tau_2'$, $\tau_1$ and $\tau_2$ must be syntactically equivalent.
+Contra-variance is allowed only in cases where the type bounds are of the form $\gamma \leqslant \mu$, and thus do not themselves include bounded quantification.
+This is captured by the rule \textsc{S$^R$-All}.
+
+The result of this restriction is that subtyping may only introduce new quantified types into the context if they are common to both types.
+
+\subsection{Subtype Decidability}
+
+\subsection{Subtype Transitivity}
+
+\subsection{Type Safety}
+
+
+
+
+%\section{Relaxing the Constraints on \Fsub}
+%
+%
+%
+%
+%
+%\begin{figure}[t]
+%\begin{minipage}{\linewidth}
+%\[
+%%\begin{array}{lcr}
+%\begin{syntax}
+%\syntaxElement{\gamma}{System F Type}
+%	{\top}{top}
+%	{\alpha}{variable}
+%	{\gamma \rightarrow \gamma}{arrow}
+%	{\forall \alpha.\tau}{all}
+%\endSyntaxElement
+%\end{syntax}
+%\]
+%\caption{System F Type Syntax}
+%\label{f:sysf:syntax}
+%\end{minipage}
+%\end{figure}
+
+\section{Separating D$_{<:}$}
+
+D$_{<:}$ is a calculus related to \Fsub that includes abstract type members and dependent functions, and serves to model core aspects of 
+the Scala type system. The syntax of D$_{<:}$ is given in Figure \ref{f:dsub:syntax}, and at first glance does not immediately resemble 
+that of \Fsub. Most noticably, D$_{<:}$ does not include any type variables. The expressiveness of D$_{<:}$ derives from being able to capture
+\Fsub using  path types ($x.L$) and dependent function types ($\allType{x}{\tau_1}{\tau_2}$). 
+
+\begin{figure}[t]
+\begin{minipage}{\linewidth}
+\[
+\begin{syntax}
+\syntaxElement{\tau}{D$_{<:}$ Type}
+	{\top}{top}
+	{\bot}{bottom}
+	{\nonRec{}{\typeDef{L}{\tau}{\tau}}}{declaration}
+	{x.L}{selection}
+	{\allType{x}{\tau}{\tau^x}}{function}
+\endSyntaxElement 
+\end{syntax}
+\]
+\caption{D$_{<:}$ Type Syntax}
+\label{f:dsub:syntax}
+\end{minipage}
+\end{figure}
+A type in D$_{<:}$  is either $\top$, $\bot$, a type declaration $\nonRec{}{\typeDef{L}{\tau_1}{\tau_2}}$, a selection type $x.L$, or a dependent function type $\allType{x}{\tau_1}{\tau_2^x}$.
+
+In D$_{<:}$, type declarations ($\nonRec{}{\typeDef{L}{\tau_1}{\tau_2}}$) define a type. Given a path $x$ to the type definition, 
+the defined type can be used by selection on the path: $x.L$. That is, if value $x$ has type $\nonRec{}{\typeDef{L}{\tau_1}{\tau_2}}$, then $x.L$ 
+refers to the defined type, where $\tau_1$ is the lower bound, and $\tau_2$ the upper bound.
+This is useful when combined with the dependent function types of D$_{<:}$.
+The return types of functions in D$_{<:}$  can be dependent on the argument. This dependence is indicated in the syntax by a super-script of the 
+variable identifying the argument. i.e. $\allType{x}{\tau_1}{\tau_2^x}$ indicates that x is free in $\tau_2$.
+
+\begin{figure}[t]
+\small
+\begin{mathpar}
+\infer
+	{}
+	{\Gamma  \vdash \tau\ <:\ \top}
+	\quad (\textsc{Top})
+	\and
+\infer
+	{}
+	{\Gamma  \vdash \tau\ <:\ \tau}
+	\quad (\textsc{Rfl})
+	\and
+\infer
+	{
+	\Gamma(x) = \nonRec{}{\typeDef{L}{\tau_1}{\tau_2}}
+	}
+	{\Gamma  \vdash x.L\ <:\ \tau_2}
+	\quad (\textsc{Sel1})
+	\and
+\infer
+	{
+	\Gamma(x) = \nonRec{}{\typeDef{L}{\tau_1}{\tau_2}}
+	}
+	{\Gamma  \vdash \tau_1\ <:\ x.L}
+	\quad (\textsc{Sel2})
+	\and
+\infer
+	{
+	\Gamma \vdash \tau_1\ <:\ \tau_2 \\
+	\Gamma \vdash \tau_2\ <:\ \tau_3
+	}
+	{\Gamma  \vdash \tau_1 \ <:\ \tau_3}
+	\quad (\textsc{Trans})
+	\and
+\infer
+	{
+	\Gamma \vdash \tau_2\ <:\ \tau_1 \\
+	\Gamma \vdash \tau_1'\ <:\ \tau_2'
+	}
+	{\Gamma  \vdash \nonRec{}{\typeDef{L}{\tau_1}{\tau_1'}} \ <:\ \nonRec{}{\typeDef{L}{\tau_2}{\tau_2'}}}
+	\quad (\textsc{Bnd})
+	\and
+\infer
+	{
+	\Gamma \vdash \tau_2\ <:\ \tau_1 \\
+	\Gamma, (x : \tau_2) \vdash \tau_1'\ <:\ \tau_2'
+	}
+	{\Gamma  \vdash \allType{x}{\tau_1}{\tau_1'} \ <:\ \allType{x}{\tau_2}{\tau_2'}}
+	\quad (\textsc{All})
+\end{mathpar}
+\caption{D$_{<:}$ Subtyping}
+\label{f:dsub:subtyping}
+\end{figure}
+D$_{<:}$ subtyping is defined in Figure \ref{f:dsub:subtyping}. Subtyping is bound above by $\top$ (\textsc{Top}) and below by $\bot$ (\textsc{Bot}).
+Subtyping is explicitly reflexive (\textsc{Rfl}). Selection types subtype their upper bounds (\textsc{Sel1}), and super type their lower bounds (\textsc{Sel2}).
+Subtyping of type declarations are contra-variant with respect to the lower bounds, and covariant with respect to their upper bounds (\textsc{Bnd}).
+Finally, subtyping of dependent fuction types is contra-variant with respect to the arument types, and covariant with respect to the return types, 
+with the return types being dependent on the arguments (\textsc{All}).
+
+Coupling type declarations together with dependent function types allows for similar functionality to F$_{<:}$. That is, we can use the encoding below to capture 
+bounded quantification from \Fsub in D$_{<:}$.
+\[
+\begin{array}{lcl}
+\llbracket\top\rrbracket 
+		& \triangleq 
+		& \top\\
+\llbracket\alpha\rrbracket 
+		& \triangleq 
+		& x_\alpha.A\\
+\llbracket\tau_1 \rightarrow \tau_2\rrbracket 
+		& \triangleq 
+		& \allType{x_\alpha}{\llbracket\tau_1\rrbracket}{\llbracket\tau_2\rrbracket^{x_\alpha}}\\
+\llbracket\forall(\alpha\leqslant\tau_1).\tau_2\rrbracket 
+		& \triangleq 
+		& \allType{x_\alpha}{\nonRec{}{\typeDef{A}{\bot}{\llbracket\tau_1\rrbracket}}}{\llbracket\tau_2\rrbracket^{x_\alpha}}
+\end{array}
+\]
+The above encoding is in fact not enough to demonstrate the undecidability of D$_{<:}$ due to the fact that while the following holds:
+\[
+\Gamma \vdash \tau_1\ <:\ \tau_2\ \Rightarrow\ \llbracket\Gamma\rrbracket \vdash \llbracket\tau_1\rrbracket\ <:\ \llbracket\tau_2\rrbracket
+\]
+the inverse does not.
+\[
+\llbracket\Gamma\rrbracket \vdash \llbracket\tau_1\rrbracket\ <:\ \llbracket\tau_2\rrbracket\ \not\Rightarrow\ \Gamma \vdash \tau_1\ <:\ \tau_2
+\]
+The reasons for this are due to the fact that functions in \Fsub are unrelated to universally quantified types, 
+but in D$_{<:}$ they are both captured using dependent function types. The full proof for this was demonstrated 
+by Hu \cite{dsub decidability}, but this does not affect the undecidability result of D$_{<:}$, as the proof of undecidability 
+in \Fsub does not rely on function types.
+
+In order to achieve a decidable variant of D$_{<:}$, we can apply the same principles as we did with \Fsub.
+Figure \ref{f:dsub:separated:syntax} presents a separated syntax for D$_{<:}$.
+\begin{figure}[t]
+\begin{minipage}{\linewidth}
+\[
+\begin{syntax}
+\syntaxElement{L}{Type Label}
+	{M}{unrestricted}
+	{S}{restricted}
+\endsyntaxElement\\
+\syntaxElement{\tau}{Separated D$_{<:}$ Type}
+	{\top}{top}
+	{\bot}{bottom}
+	{\nonRec{}{\typeDef{L}{\tau}{\tau}}}{declaration}
+	{x.L}{selection}
+	{\allType{x}{\tau}{\tau^x}}{function}
+\endSyntaxElement  \\
+\syntaxElement{\tau}{Restricted D$_{<:}$ Type}
+	{\top}{top}
+	{\bot}{bottom}
+	{\nonRec{}{\typeDef{L}{\tau}{\tau}}}{declaration}
+	{x.M}{selection}
+	{\allType{x}{\tau}{\tau}}{function}
+	{\allType{x}{\tau}{\tau^x}}{dependent function}
+\endSyntaxElement  \\
+\end{syntax}
+\]
+\caption{D$_{<:}$ Type Syntax}
+\label{f:dsub:separated:syntax}
+\end{minipage}
+\end{figure}
+
+
+
+
+\section{Related Work}
+
+\section{Conclusion}
+
+%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{sample-base}
+
+%%
+%% If your work has an appendix, this is the place to put it.
+\appendix
+
+\section{Proof}
+
+\subsection{Full \Fsub Syntax and Typing}
+\label{app:fsub}
+
+\subsection{Subtype Decidability}
+
+\subsection{Transitivity}
+
+\subsection{Type Safety}
+
+%
+% ---- Bibliography ----
+%
+% BibTeX users should specify bibliography style 'splncs04'.
+% References will then be sorted and formatted in the correct style.
+%
+% \bibliographystyle{splncs04}
+% \bibliography{mybibliography}
+%
+\begin{thebibliography}{8}
+\end{thebibliography}
+\end{document}

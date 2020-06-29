@@ -1,0 +1,215 @@
+\ProvidesPackage{common/common}[2017/05/29 v1.0 common commands]
+
+\usepackage{xspace}
+
+
+
+\newcommand{\typeDef}[3]{
+	#1\ : #2 \ldots #3}
+
+\newcommand{\typeDefSub}[2]{
+	#1\ \leqslant #2}
+
+\newcommand{\typeDefSup}[2]{
+	#1\ \geqslant #2}
+	
+\newcommand{\typeDefEq}[2]{
+	#1\ =\ #2}
+	
+\newcommand{\typeDefExt}[2]{
+	#1\ \preceq\ #2}
+	
+\newcommand{\typeDefn}[3]{
+	#1\ #2\ #3}
+
+\newcommand{\typeDefFrac}[4]{
+	#1 \sfrac{#2}{#3}\ #4}
+
+
+	
+\newcommand{\methDefType}[4]{
+	#1\ : #3^#2 \rightarrow #4}
+
+\newcommand{\methDef}[4]{
+	#1\ \ (#2 : #3) = #4}
+
+\newcommand{\valDef}[2]{
+	#1 :  #2}
+
+
+	
+\newcommand{\nonRec}[2]{
+	#1\{#2\}}
+	
+\newcommand{\refn}[3]{
+	#1\{#2 \Rightarrow #3\}}
+	
+\newcommand{\structType}[2]{
+	\{#1 \Rightarrow #2\}}
+
+\newcommand{\allType}[3]{
+	\forall (#1:#2).#3}
+
+\newcommand{\arrowType}[3]{
+	#2^#1 \rightarrow #3}
+	
+	
+	
+\newcommand{\red}[1]{
+	\color{red}#1 \color{black}
+}
+\newcommand{\blue}[1]{
+	\color{blue}#1 \color{black}
+}
+
+\newcommand{\Wyv}{\emph{Wyv}$_{\textit{core}}$\xspace}
+
+\newcommand{\WSelf}{\emph{Wyv}$_{\textit{self}}$\xspace}
+
+\newcommand{\WSelfAlt}{\emph{Wyv}$_{\textit{self}}^\prime$\xspace}
+
+\newcommand{\WFix}{\emph{Wyv}$_{\textit{fix}}$\xspace}
+
+\newcommand{\Fsub}{System F$_{<:}$\xspace}
+
+\newcommand{\new}[2]{
+	\text{\textbf{\texttt{new}}}\; \{#1 \Rightarrow #2 \}
+}
+
+
+\newcommand{\algTurn}{
+	\mathrlap{\; \vdash}\mapsto
+}
+
+
+
+%--------------------------------------------------------------------------------------------------
+% Structural types
+\makeatletter 
+
+
+\newcommand{\struct}[1]{%
+	\left\{ #1 \Rightarrow
+		\begin{array}{l}
+			\@structi
+}
+
+\newcommand\@structi{\@ifnextchar\endstruct{\@structend}{\@structii}}
+
+\newcommand\@structii[1]{%
+  \@structiii{#1}
+  \@structi 
+}
+\newcommand\@structiii[1]{%
+	#1\\}
+\newcommand\@structend[1]{
+	\vspace*{-\bigskipamount}
+	\end{array}
+	\right\}}
+\makeatother
+
+
+%--------------------------------------------------------------------------------------------------	
+	
+% Algorithmmic subtype check
+\makeatletter 
+
+
+\newcommand{\subtypeAlgorithm}{%
+		\[
+		\begin{array}{lllll}
+			\@algStep
+}
+
+\newcommand\@algStep{\@ifnextchar\endSubtypeAlgorithm{\@algend}{\@stepi}}
+
+\newcommand\@stepi[5]{%
+  \@stepii{#1}{#2}{#3}{#4}{#5}
+  \@algStep 
+}
+\newcommand\@stepii[5]{%
+	\\#1 & #2 & 
+%	\begin{array}{c}
+		 #3 &
+		#4 &
+		#5  \\
+%	\end{array}\\
+	
+%	\hline
+	}
+\newcommand\@algend[1]{
+	\vspace*{-\bigskipamount}
+	\end{array}
+	\]
+	}
+\makeatother
+
+%--------------------------------------------------------------------------------------------------	
+	
+% Double Headed Algorithmmic subtype check
+\makeatletter 
+
+
+\newcommand{\doubleSubtypeAlgorithm}{%
+		\scriptsize
+		\[
+		\begin{array}{lllll}
+			\@doubleAlgStep
+}
+
+\newcommand\@doubleAlgStep{\@ifnextchar\endDoubleSubtypeAlgorithm{\@doubleAlgEnd}{\@doubleStepi}}
+
+\newcommand\@doubleStepi[7]{%
+  \@doubleStepii{#1}{#2}{#3}{#4}{#5}{#6}{#7}
+  \@doubleAlgStep 
+}
+\newcommand\@doubleStepii[7]{%
+	\\#1 & #2 & 
+	\begin{array}{c}
+		#3 \
+		#4 \
+		#5 \
+	\end{array} &
+	#6 & #7\\
+	
+%	\hline
+	}
+\newcommand\@doubleAlgEnd[1]{
+	\vspace*{-\bigskipamount}
+	\end{array}
+	\]
+	}
+\makeatother
+
+
+%--------------------------------------------------------------------------------------------------	
+	
+% Syntax Construct
+\makeatletter 
+
+\newenvironment{syntax}
+    {
+    \begin{array}{llr}
+    }
+    { 
+    \end{array}
+    }
+
+\newcommand{\syntaxElement}[2]{%
+		#1 & ::= & \text{\bf{#2}} \\
+			\@syntaxEntry
+}
+
+\newcommand\@syntaxEntry{\@ifnextchar\endSyntaxElement{\@syntaxElementEnd}{\@syntaxEntryCheck}}
+
+\newcommand\@syntaxEntryCheck[2]{%
+  \@syntaxEntryMake{#1}{#2}
+  \@syntaxEntry
+}
+\newcommand\@syntaxEntryMake[2]{%
+	& #1 & \text{\emph{#2}} \\
+	}
+\newcommand\@syntaxElementEnd[1]{
+	\vspace*{-\bigskipamount}
+	}
+\makeatother
