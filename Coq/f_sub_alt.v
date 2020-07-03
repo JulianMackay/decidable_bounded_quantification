@@ -63,7 +63,72 @@ Ltac eqb_auto :=
   | [Hge : ?n <=? ?m = true,
            H : context[?n <=? ?n] |- _] =>
     rewrite Hge in H
+
+  | [|- context[(?n1 =? ?n2) = (?n2 =? ?n1)]] =>
+    rewrite Nat.eqb_sym
+  | [H : context[(?n1 =? ?n2) = (?n2 =? ?n1)] |- _] =>
+    rewrite Nat.eqb_sym in H
+
+  | [H : ?n1 =? ?n2 = true |- _] =>
+    let H' := fresh in
+    assert (H' : n1 = n2);
+    [apply Nat.eqb_eq in H; auto|subst; clear H]
+
+  (*reflexivity*)
+  | [H : context[?n =? ?n] |- _] =>
+    rewrite Nat.eqb_refl in H
+  | [|- context[?n =? ?n]] =>
+    rewrite Nat.eqb_refl
   end.
+
+
+Class Eq (A : Type) :=
+  {eqb : A -> A -> bool;
+   eqb_refl : forall a, eqb a a = true;
+   eqb_sym : forall a1 a2, eqb a1 a2 = eqb a2 a1;
+   eqb_eqp : forall a1 a2, eqb a1 a2 = true ->
+                      a1 = a2;
+   eqb_neq : forall a1 a2, eqb a1 a2 = false ->
+                      a1 <> a2;
+   neq_eqb : forall a1 a2, a1 <> a2 ->
+                      eqb a1 a2 = false;
+   eq_dec : forall (a1 a2 : A), {a1 = a2} + {a1 <> a2}}.
+
+Hint Resolve eqb_refl eqb_sym eqb_eqp eqb_neq neq_eqb eq_dec : eq_db.
+
+Program Instance nat_Eq : Eq nat :=
+  {eqb n m := (n =? m);
+   eqb_refl := Nat.eqb_refl;
+   eqb_sym := Nat.eqb_sym;
+   eq_dec := Nat.eq_dec}.
+Next Obligation.
+  auto using beq_nat_eq.
+Defined.
+Next Obligation.
+  apply Nat.eqb_neq; auto.
+Defined.
+Next Obligation.
+  apply Nat.eqb_neq; auto.
+Defined.
+
+Class Monad@{d c} (m : Type@{d} -> Type@{c}) : Type :=
+  {
+    ret : forall {t : Type@{d}}, t -> m t;
+    bind : forall {t u : Type@{d}}, m t -> (t -> m u) -> m u
+  }.
+
+Instance optionMonad : Monad option :=
+  {
+    ret T x :=
+      Some x ;
+    bind :=
+      fun T U m f =>
+            match m with
+            | None => None
+            | Some x => f x
+            end
+
+  }.
 
 Ltac and_destruct :=
   repeat match goal with
@@ -86,9 +151,75 @@ Inductive ρ_name :=
 Inductive υ_name :=
 | υ_n : nat -> υ_name.
 
-Inductive name :=
+Inductive name : Type :=
 | ρ_ : nat -> name
 | υ_ : nat -> name.
+
+Ltac name_eq_auto :=
+  match goal with
+  | [a : name |- _] =>
+    destruct a
+  end.
+
+Program Instance name_eq : Eq name :=
+  { eqb x y := match x, y with
+               | ρ_ n, ρ_ m => n =? m
+               | υ_ n, υ_ m => n =? m
+               | _, _ => false
+               end
+  }.
+Next Obligation.
+  split;
+    intros;
+    crush.
+Defined.
+Next Obligation.
+  split;
+    intros;
+    crush.
+Defined.
+Next Obligation.
+  name_eq_auto;
+    eqb_auto;
+    auto.
+Defined.
+Next Obligation.
+  repeat name_eq_auto;
+    auto;
+    eqb_auto;
+    auto.
+Defined.
+Next Obligation.
+  repeat name_eq_auto;
+    try eqb_auto;
+    crush.
+Defined.
+Next Obligation.
+  repeat name_eq_auto;
+    repeat eqb_auto;
+    crush;
+    eqb_auto;
+    crush.
+Defined.
+Next Obligation.
+  repeat name_eq_auto;
+    repeat eqb_auto;
+    try solve [crush];
+    match goal with
+    | [n : nat, m : nat |- _] =>
+      eq_auto n m
+    end;
+    crush.
+Defined.
+Next Obligation.
+  repeat name_eq_auto;
+    match goal with
+    | [n : nat, m : nat |- _] =>
+      eq_auto n m
+    end;
+    auto;
+    try solve [right; crush].
+Defined.
 
 Inductive var : Type :=
 | hole : nat -> var
@@ -151,54 +282,6 @@ Ltac ty_constructors :=
     subst;
     clear H
   end.
-
-Class Eq (A : Type) :=
-  {eqb : A -> A -> bool;
-   eqb_refl : forall a, eqb a a = true;
-   eqb_sym : forall a1 a2, eqb a1 a2 = eqb a2 a1;
-   eqb_eqp : forall a1 a2, eqb a1 a2 = true ->
-                      a1 = a2;
-   eqb_neq : forall a1 a2, eqb a1 a2 = false ->
-                      a1 <> a2;
-   neq_eqb : forall a1 a2, a1 <> a2 ->
-                      eqb a1 a2 = false;
-   eq_dec : forall (a1 a2 : A), {a1 = a2} + {a1 <> a2}}.
-
-Hint Resolve eqb_refl eqb_sym eqb_eqp eqb_neq neq_eqb eq_dec : eq_db.
-
-Program Instance nat_Eq : Eq nat :=
-  {eqb n m := (n =? m);
-   eqb_refl := Nat.eqb_refl;
-   eqb_sym := Nat.eqb_sym;
-   eq_dec := Nat.eq_dec}.
-Next Obligation.
-  auto using beq_nat_eq.
-Defined.
-Next Obligation.
-  apply Nat.eqb_neq; auto.
-Defined.
-Next Obligation.
-  apply Nat.eqb_neq; auto.
-Defined.
-
-Class Monad@{d c} (m : Type@{d} -> Type@{c}) : Type :=
-  {
-    ret : forall {t : Type@{d}}, t -> m t;
-    bind : forall {t u : Type@{d}}, m t -> (t -> m u) -> m u
-  }.
-
-Instance optionMonad : Monad option :=
-  {
-    ret T x :=
-      Some x ;
-    bind :=
-      fun T U m f =>
-            match m with
-            | None => None
-            | Some x => f x
-            end
-
-  }.
 
 Inductive restricted : ty -> Prop :=
 | rest_top : restricted (⊤)
@@ -263,117 +346,132 @@ Definition t_update {A B : Type}`{Eq A}(a : A)(b : B)(Γ : total_map A B) : tota
 
 Definition partial_map (A B : Type)`{Eq A} := total_map A (option B).
 
-Definition p_empty {A B : Type}`{Eq A} : partial_map A B := t_emtpy None.
+Definition empty {A B : Type}`{Eq A} : partial_map A B := t_emtpy None.
 
 Definition update {A B : Type}`{Eq A}(a : A)(b : B)(Γ : partial_map A B) : partial_map A B :=
   t_update a (Some b) Γ.
 
 Definition ty_map := partial_map name ty.
 
-Definition separated
+Notation "'[' a '⩽' b ']' '∈' c" := (c a = Some b)(at level 40).
 
-Definition env := forall (map : ty_map), 
+Definition separated (Γ : ty_map) :=
+  forall n τ, [ ρ_ n  ⩽ τ ] ∈ Γ ->
+         restricted τ.
 
-Definition ρ_map := partial_map restricted_ty.
+Definition id x := match x with
+                   | ρ_ n => n
+                   | υ_ n => n
+                   end.
 
-Definition υ_map := partial_map ty.
+Definition ord (Γ : ty_map) :=
+  forall x τ, Γ x = Some τ ->
+         ℳ τ < (id x).
 
-Definition ord (Γ : υ_map) :=
-  forall n τ, Γ n = Some τ -> ℳ τ < n.
+Definition wf := (fun Γ => separated Γ /\ ord Γ).
 
-Definition ord_r (Γ : ρ_map) :=
-  forall n τ, Γ n = Some τ -> ℳ (unwrap τ) < n.
+Definition env := @indexed ty_map wf.
 
-Definition ρ_env := @indexed ρ_map ord_r.
-
-Definition υ_env := @indexed υ_map ord.
-
-Definition env : Type := (ρ_env * υ_env).
-
-Definition ρ_get (ρΓ : ρ_env)(n : nat) : option ty :=
-  match ρΓ with
-  | index Γ _ => bind (Γ n) (fun x => Some (unwrap x))
-  end.
-
-Definition υ_get (υΓ : υ_env)(n : nat) : option ty :=
-  match υΓ with
-  | index Γ _ => Γ n
-  end.
-
-Definition get (Γ : env)(n : name) : option ty :=
-  match Γ with
-  | (ρΓ, υΓ) =>
-    match n with
-    | ρ_ m => ρ_get ρΓ m
-    | υ_ m => υ_get υΓ m
-    end
-  end.
-
-Notation "'[' a '⩽' b ']' '∈' c" := (get c a = Some b)(at level 40).
-
-Lemma ℳ_ρ_update :
-  forall {ρΓ : ρ_map}{n : nat}{τ : restricted_ty},
-    ord_r ρΓ ->
-    ℳ (unwrap τ) < n ->
-    ord_r (p_update n τ ρΓ).
+Lemma update_ord :
+  forall {Γ : ty_map}{x : name}{τ : ty},
+    ord Γ ->
+    ℳ τ < id x ->
+    ord (update x τ Γ).
 Proof.
   intros.
-  unfold ord_r, p_update;
+  unfold ord, update, t_update;
     intros.
-  destruct (Nat.eq_dec n n0);
-    subst;
-    repeat eqb_auto;
-    crush.
+  - destruct (eq_dec x x0);
+      subst.
+    rewrite eqb_refl in H1.
+    inversion H1; subst;
+      auto.
+    rewrite neq_eqb in H1; auto;
+      intros Hcontra.
 Qed.
 
-Definition update_ρ_env (n : nat)(τ : restricted_ty)
-           (P : ℳ (unwrap τ) < n)(ρΓ : ρ_env) :=
-  match ρΓ with
-  | ⟦ Γ ⊨ P' ⟧ => ⟦ (p_update n τ Γ) ⊨ (ℳ_ρ_update P' P) ⟧
-  end.
+Lemma update_sep_ρ :
+  forall {Γ : ty_map}{n : name}{τ : ty},
+    separated Γ ->
+    restricted τ ->
+    separated (update n τ Γ).
+Proof.
+  intros.
+  unfold separated, update, t_update in *;
+    intros.
+  destruct (eq_dec (ρ_ n0) n);
+    subst.
+  - rewrite eqb_refl in H1.
+    inversion H1;
+      subst;
+      auto.
+  - rewrite neq_eqb in H1;
+      auto.
+    eapply H; eauto.
+Qed.
 
-Lemma ℳ_υ_update :
-  forall {υΓ : υ_map}{n : nat}{τ : ty},
-    ord υΓ ->
+Lemma update_sep_υ :
+  forall {Γ : ty_map}{n : nat}{τ : ty},
+    separated Γ ->
+    separated (update (υ_ n) τ Γ).
+Proof.
+  intros.
+  unfold separated, update, t_update in *;
+    intros.
+  rewrite neq_eqb in H0.
+  - eapply H; eauto.
+  - intros Hcontra;
+      crush.
+Qed.
+
+Lemma update_ρ :
+  forall {Γ : ty_map}{n : nat}{τ : ty},
+    wf Γ ->
+    restricted τ /\ ℳ τ < n ->
+    wf (update (ρ_ n) τ Γ).
+Proof.
+  intros;
+    unfold wf in *;
+    and_destruct.
+  split.
+  - apply update_sep_ρ;
+      auto.
+  - apply update_ord;
+      auto.
+Qed.
+
+Lemma update_υ :
+  forall {Γ : ty_map}{n : nat}{τ : ty},
+    wf Γ ->
     ℳ τ < n ->
-    ord (p_update n τ υΓ).
+    wf (update (υ_ n) τ Γ).
 Proof.
-  intros.
-  unfold ord, p_update;
-    intros.
-  destruct (Nat.eq_dec n n0);
-    subst;
-    repeat eqb_auto;
-    crush.
+  intros;
+    unfold wf in *;
+    and_destruct.
+  split.
+  - apply update_sep_υ;
+      auto.
+  - apply update_ord;
+      auto.
 Qed.
 
-Definition update_υ_env (n : nat)(τ : ty)(P : ℳ τ < n)(υΓ : υ_env) :=
-  match υΓ with
-  | ⟦ Γ ⊨ P' ⟧ => ⟦ (p_update n τ Γ) ⊨ ℳ_υ_update P' P ⟧
-  end.
-
-Definition ρ_update (n : nat)(τ : restricted_ty)(P : ℳ (unwrap τ) < n)(Γ : env) :=
+Definition ρ_update (n : nat)(τ : ty)(P : restricted τ /\ ℳ τ < n)(Γ : env) :=
   match Γ with
-  | (ρΓ, υΓ) => (update_ρ_env n τ P ρΓ, υΓ)
+  | index β P' => index (update (ρ_ n) τ β) (update_ρ P' P)
   end.
 
 Definition υ_update (n : nat)(τ : ty)(P : ℳ τ < n)(Γ : env) :=
   match Γ with
-  | (ρΓ, υΓ) => (ρΓ, update_υ_env n τ P υΓ)
+  | index β P' => index (update (υ_ n) τ β)(update_υ P' P)
   end.
 
-Notation "Γ ',' '[' P '⫤ρ' n '⩽' τ ']'":=(ρ_update n τ P Γ)(at level 40).
+Notation "Γ ',' '[' P '⫤ρ' n '⩽' τ ']'":=(update n τ P Γ)(at level 40).
 Notation "Γ ',' '[' P '⫤υ' n '⩽' τ ']'":=(υ_update n τ P Γ)(at level 40).
 
 Definition map_size {A : Type}(Γ : nat -> option A)(n : nat) :=
   (forall m a, m <= n <->
           Γ m = Some a).
-
-Fixpoint id (n : name) : nat :=
-  match n with
-  | ρ_ n' => n'
-  | υ_ n' => n'
-  end.
 
 Fixpoint sbst (m : nat)(n : name)(τ : ty) : ty :=
   match τ with
@@ -505,11 +603,11 @@ Qed.*)
 Proof.
 Qed.*)
 
-Definition bounded (Γ : env)(n : nat) :=
+(*Definition bounded (Γ : env)(n : nat) :=
   forall m τ, ([ ρ_ m ⩽ τ] ∈ Γ ->
           m <= n) /\
          ([ υ_ m ⩽ τ] ∈ Γ ->
-          m <= n).
+          m <= n).*)
 
 (*Inductive indexed {A : Type}{size : A -> nat -> Prop}{n : nat} : Type :=
 | index : forall a, size a n -> indexed.*)
@@ -520,14 +618,14 @@ Definition indexed_ty (n : nat) := @indexed ty (ℳ_le n).
 
 (*Definition indexed_env (n : nat) := @indexed env bounded n.*)
 
-Lemma bnd_impl1 :
+(*Lemma bnd_impl1 :
   forall {Γ : env}{n : nat}{m : name}{τ : ty},
       [m ⩽ τ] ∈ Γ ->
       ℳ_le n (α m) ->
       ℳ_le n τ.
 Proof.
   intros.
-Admitted.
+Admitted.*)
 
 Lemma ℳ_le_arr1 :
   forall {τ1 τ2 : ty}{n : nat},
@@ -971,6 +1069,8 @@ Inductive sub {n : nat} : env -> @indexed_ty n -> @indexed_ty n -> Prop :=
 (P : ℳ (α m) <= n)
 *)
 | s_rfl : forall Γ m P, Γ ⊢ ⟦ α m ⊨  P ⟧ ⩽ ⟦ (α m) ⊨ P ⟧
+
+where "Γ '⊢' ι1 '⩽' ι2" := (sub Γ ι1 ι2).
 
 (**
 (P' : ℳ_le (α m) n)
